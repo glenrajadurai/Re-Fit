@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check Your Fit</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <!-- Header Bar -->
+  <div class="app-header">
+    <div class="brand-container">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">Check Your Fit</div>
+        <div style="font-size: 10px; color: #94a3b8;">AI Fit & Camera AR Try-On Assistant</div>
+      </div>
+    </div>
+    <span class="badge-tag">v1.0 Active</span>
+  </div>
+
+  <!-- Tabs Navigation (3 Tabs: Fit Check, 3D AR Studio, My Sizes) -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-fit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+      Fit Check
+    </button>
+    <button class="tab-btn" data-tab="tab-vr" id="btnVrTab">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10s3-3 10-3 10 3 10 3v7s-3 3-10 3-10-3-10-3v-7z"/><circle cx="7" cy="14" r="2"/><circle cx="17" cy="14" r="2"/></svg>
+      3D AR Studio
+    </button>
+    <button class="tab-btn" data-tab="tab-profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      My Sizes
+    </button>
+  </div>
+
+  <!-- Content Viewport -->
+  <div class="content-viewport">
+
+    <!-- TAB 1: FIT & RETURN RISK ANALYZER -->
+    <div class="tab-panel active" id="tab-fit">
+      
+      <!-- 1. SIZE QUICK SELECTOR -->
+      <div class="card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(15, 23, 42, 0.95)); border: 1px solid rgba(129, 140, 248, 0.4);">
+        <div style="font-size: 12px; font-weight: 700; color: #c7d2fe; display: flex; justify-content: space-between; align-items: center;">
+          <span>📏 SELECT YOUR SIZE BELOW</span>
+          <span style="font-size: 10px; color: #a7f3d0; background: rgba(16, 185, 129, 0.2); padding: 2px 6px; border-radius: 4px;">Click to Set</span>
+        </div>
+        
+        <div class="size-btn-group" id="sizeQuickGroup">
+          <button class="size-chip" data-size="XS">XS</button>
+          <button class="size-chip" data-size="S">S</button>
+          <button class="size-chip active" data-size="M">M</button>
+          <button class="size-chip" data-size="L">L</button>
+          <button class="size-chip" data-size="XL">XL</button>
+          <button class="size-chip" data-size="2XL">2XL</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+          <div class="form-group">
+            <label class="form-label">Usual Brand:</label>
+            <select class="form-select" id="refBrandNameSelect">
+              <option value="Nike" selected>Nike (Standard)</option>
+              <option value="Zara">Zara (Runs Small)</option>
+              <option value="H&M">H&M (Runs Large)</option>
+              <option value="ASOS">ASOS (Slim Fit)</option>
+              <option value="Custom">Custom Measurements</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Fit Preference:</label>
+            <select class="form-select" id="fitPrefQuickSelect">
+              <option value="regular" selected>Regular Comfort</option>
+              <option value="tight">Slim / Tight Fit</option>
+              <option value="relaxed">Relaxed / Oversized</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scraped Page Product Info (NO PRICE DISPLAYED) -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Active Webpage Item Scanned
+          </span>
+          <span class="risk-badge risk-low" id="fabricStretchBadge">Stretch 12%</span>
+        </div>
+        <div id="productTitleDisplay" style="font-size: 13px; font-weight: 600; line-height: 1.3;">
+          Scanning webpage for item...
+        </div>
+        <div style="font-size: 11px; color: #94a3b8; display: flex; gap: 12px; flex-wrap: wrap;">
+          <span>🧵 Material: <strong id="productFabricDisplay" style="color: #cbd5e1;">Cotton / Elastane</strong></span>
+          <span>💬 Reviews: <strong id="productReviewSentimentDisplay" style="color: #34d399;">True to Size</strong></span>
+        </div>
+      </div>
+
+      <!-- Fit Score Gauge Card -->
+      <div class="fit-gauge-container">
+        <div class="score-circle-wrapper">
+          <svg width="80" height="80" viewBox="0 0 36 36">
+            <path stroke="#1e293b" stroke-width="3.8" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path id="scoreGaugeArc" stroke="#6366f1" stroke-linecap="round" stroke-width="3.8" stroke-dasharray="88, 100" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+          </svg>
+          <span class="score-text" id="scoreValue">88%</span>
+        </div>
+        <div class="fit-verdict-box">
+          <div class="verdict-title" id="verdictTitle">Great Fit Match</div>
+          <div class="verdict-desc" id="verdictDesc">
+            Calculated against your selected Size M & fabric elasticity.
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommended Size Card -->
+      <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.8)); border-color: rgba(16, 185, 129, 0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; color: #94a3b8; font-weight: 600;">RECOMMENDED PURCHASE SIZE</div>
+            <div style="font-size: 22px; font-weight: 800; color: #34d399;" id="recommendedSize">SIZE M</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: #94a3b8;">Your Selected Size: <strong id="yourInputSizeDisplay" style="color: #38bdf8;">Size M</strong></div>
+            <div style="font-size: 11px; color: #fbbf24;">Return Risk: <strong id="riskLabelDisplay">LOW</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Regional Tension Breakdown -->
+      <div class="card">
+        <span class="card-title">Zone Tension Analysis</span>
+
+        <div class="metric-row">
+          <div class="metric-label-row">
+            <span>Chest Ease</span>
+            <span id="chestEaseVal" style="color: #34d399;">Perfect (+4cm)</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="chestBar" style="width: 85%; background: #10b981;"></div>
+          </div>
+        </div>
+
+        <div class="metric-row">
+          <div class="metric-label-row">
+            <span>Waist Comfort</span>
+            <span id="waistEaseVal" style="color: #34d399;">Ideal (+2.5cm)</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="waistBar" style="width: 78%; background: #10b981;"></div>
+          </div>
+        </div>
+
+        <div class="metric-row">
+          <div class="metric-label-row">
+            <span>Shoulders & Sleeves</span>
+            <span id="shoulderEaseVal" style="color: #fbbf24;">Snug Fit (+0.5cm)</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="shoulderBar" style="width: 60%; background: #f59e0b;"></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btnRescanPage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Re-Scan Current Page
+      </button>
+
+    </div>
+
+    <!-- TAB 2: 3D AR STUDIO WITH LIVE CAMERA TOGGLE & GARMENT IMAGE OVERLAY -->
+    <div class="tab-panel" id="tab-vr">
+      <div class="card-header" style="padding: 0 4px;">
+        <span class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          3D AR Try-On Studio & Live Mirror
+        </span>
+        <button class="btn-primary" id="btnStartCamera" style="padding: 4px 10px; font-size: 11px;">
+          🎥 Start Live Camera
+        </button>
+      </div>
+
+      <!-- Viewport Box: Canvas + Video Stream -->
+      <div class="canvas-container" style="min-height: 260px; position: relative;">
+        <video id="arCameraVideo" autoplay playsinline style="display: none; position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+        
+        <canvas id="vrCanvas" width="370" height="260" style="display: block; background: #0f172a; border-radius: 12px; z-index: 2; position: relative;"></canvas>
+
+        <div class="canvas-overlay-controls" style="z-index: 5;">
+          <button class="icon-btn" id="toggleHeatmapBtn">Toggle Heatmap</button>
+          <button class="icon-btn" id="rotateMannequinBtn">🔄 Rotate 360°</button>
+        </div>
+      </div>
+
+      <!-- Heatmap Legend -->
+      <div class="heatmap-legend">
+        <div class="legend-item"><div class="dot dot-green"></div> Optimal Comfort</div>
+        <div class="legend-item"><div class="dot dot-yellow"></div> Snug Tension</div>
+        <div class="legend-item"><div class="dot dot-red"></div> Tight Return Risk</div>
+      </div>
+
+      <!-- VR Controls -->
+      <div class="card grid-2">
+        <div class="form-group">
+          <label class="form-label">Garment Size Overlay</label>
+          <select class="form-select" id="vrSizeSelect">
+            <option value="XS">Size XS (Super Tight)</option>
+            <option value="S">Size S (Tight)</option>
+            <option value="M" selected>Size M (Your Size)</option>
+            <option value="L">Size L (Comfort Fit)</option>
+            <option value="XL">Size XL (Loose)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mannequin Posture</label>
+          <select class="form-select" id="vrPoseSelect">
+            <option value="standing" selected>Neutral Standing</option>
+            <option value="walking">Active Walk (Leg Tension)</option>
+            <option value="sitting">Seated (Waist Stretch)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card grid-2">
+        <div class="form-group">
+          <label class="form-label">Garment Type</label>
+          <select class="form-select" id="vrGarmentTypeSelect">
+            <option value="tshirt" selected>T-Shirt / Top</option>
+            <option value="jacket">Jacket / Coat</option>
+            <option value="pants">Jeans / Trousers</option>
+            <option value="dress">Casual Dress</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rotation Angle</label>
+          <input type="range" min="0" max="360" value="0" id="vrRotationSlider" style="accent-color: #6366f1; width: 100%; margin-top: 6px;">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 3: USER BODY MEASUREMENTS -->
+    <div class="tab-panel" id="tab-profile">
+      <div class="card" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(15, 23, 42, 0.95));">
+        <span class="card-title" style="color: #c7d2fe;">📐 ENTER YOUR EXACT BODY MEASUREMENTS</span>
+        <div style="font-size: 11px; color: #cbd5e1; margin-bottom: 4px;">
+          Type your sizes below or use the quick size buttons on the Fit Check tab:
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Height (cm)</label>
+            <input type="number" class="form-input" id="inputHeight" value="175">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Weight (kg)</label>
+            <input type="number" class="form-input" id="inputWeight" value="68">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Chest (cm)</label>
+            <input type="number" class="form-input" id="inputChest" value="96">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Waist (cm)</label>
+            <input type="number" class="form-input" id="inputWaist" value="80">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Hips (cm)</label>
+            <input type="number" class="form-input" id="inputHips" value="98">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Shoulders (cm)</label>
+            <input type="number" class="form-input" id="inputShoulder" value="44">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="card-title">Body Shape Archetype</span>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Body Structure</label>
+            <select class="form-select" id="selectBodyShape">
+              <option value="athletic" selected>Athletic / V-Shape</option>
+              <option value="hourglass">Hourglass</option>
+              <option value="rectangle">Rectangle / Straight</option>
+              <option value="pear">Pear / Bottom Heavy</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fit Preference</label>
+            <select class="form-select" id="selectFitPref">
+              <option value="tight">Slim / Tight</option>
+              <option value="regular" selected>Regular Comfort</option>
+              <option value="relaxed">Relaxed / Oversized</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btnSaveProfile">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Save Body Measurements
+      </button>
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
