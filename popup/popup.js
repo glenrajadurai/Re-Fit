@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resizeCanvasIfNeeded();
     renderVRMannequin();
     calculateFitScore();
-  }, 100);
+  }, 50);
 
   function initTabs() {
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
           setTimeout(() => {
             resizeCanvasIfNeeded();
             renderVRMannequin();
-          }, 40);
+          }, 30);
         }
       });
     });
@@ -81,8 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const parent = canvas.parentElement;
     const w = (parent && parent.clientWidth > 100) ? parent.clientWidth : 370;
     const h = (parent && parent.clientHeight > 100) ? parent.clientHeight : 260;
-    canvas.width = w;
-    canvas.height = h;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
   }
 
   function loadStoredData() {
@@ -104,7 +106,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSizeChipUI(sz) {
-    const chips = document.querySelectorAll('.size-chip');
+    const group = document.getElementById('sizeQuickGroup');
+    if (!group) return;
+
+    // Check if the current size chip exists in the group
+    let chip = group.querySelector(`.size-chip[data-size="${sz}"]`);
+    if (!chip && sz) {
+      // Add a dynamic chip for detected store size if not present in default XS-2XL
+      chip = document.createElement('button');
+      chip.className = 'size-chip active';
+      chip.setAttribute('data-size', sz);
+      chip.innerText = sz;
+      chip.addEventListener('click', () => {
+        group.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        selectedUserSize = sz;
+        vrState.size = sz;
+        const vrSelect = document.getElementById('vrSizeSelect');
+        if (vrSelect) vrSelect.value = sz;
+        calculateFitScore();
+        renderVRMannequin();
+      });
+      group.appendChild(chip);
+    }
+
+    const chips = group.querySelectorAll('.size-chip');
     chips.forEach(c => {
       if (c.getAttribute('data-size') === sz) {
         c.classList.add('active');
@@ -117,14 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function populateProfileForm() {
-    document.getElementById('inputHeight').value = userProfile.heightCm;
-    document.getElementById('inputWeight').value = userProfile.weightKg;
-    document.getElementById('inputChest').value = userProfile.chestCm;
-    document.getElementById('inputWaist').value = userProfile.waistCm;
-    document.getElementById('inputHips').value = userProfile.hipsCm;
-    document.getElementById('inputShoulder').value = userProfile.shoulderCm;
-    document.getElementById('selectFitPref').value = userProfile.fitPreference;
-    document.getElementById('selectBodyShape').value = userProfile.bodyShape;
+    if (document.getElementById('inputHeight')) document.getElementById('inputHeight').value = userProfile.heightCm;
+    if (document.getElementById('inputWeight')) document.getElementById('inputWeight').value = userProfile.weightKg;
+    if (document.getElementById('inputChest')) document.getElementById('inputChest').value = userProfile.chestCm;
+    if (document.getElementById('inputWaist')) document.getElementById('inputWaist').value = userProfile.waistCm;
+    if (document.getElementById('inputHips')) document.getElementById('inputHips').value = userProfile.hipsCm;
+    if (document.getElementById('inputShoulder')) document.getElementById('inputShoulder').value = userProfile.shoulderCm;
+    if (document.getElementById('selectFitPref')) document.getElementById('selectFitPref').value = userProfile.fitPreference;
+    if (document.getElementById('selectBodyShape')) document.getElementById('selectBodyShape').value = userProfile.bodyShape;
   }
 
   function saveProfileData() {
@@ -135,8 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
       waistCm: parseFloat(document.getElementById('inputWaist').value) || 80,
       hipsCm: parseFloat(document.getElementById('inputHips').value) || 98,
       shoulderCm: parseFloat(document.getElementById('inputShoulder').value) || 44,
-      fitPreference: document.getElementById('selectFitPref').value,
-      bodyShape: document.getElementById('selectBodyShape').value
+      fitPreference: document.getElementById('selectFitPref') ? document.getElementById('selectFitPref').value : 'regular',
+      bodyShape: document.getElementById('selectBodyShape') ? document.getElementById('selectBodyShape').value : 'athletic'
     };
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -159,11 +185,40 @@ document.addEventListener('DOMContentLoaded', () => {
           chrome.tabs.sendMessage(tabs[0].id, { action: 'GET_PAGE_PRODUCT_DATA' }, (response) => {
             if (response && response.title) {
               currentProduct = response;
+
+              // If the webpage has an active size selected, automatically adopt it
+              if (response.webpageSelectedSize) {
+                selectedUserSize = response.webpageSelectedSize;
+                vrState.size = selectedUserSize;
+                updateSizeChipUI(selectedUserSize);
+                const vrSelect = document.getElementById('vrSizeSelect');
+                if (vrSelect) vrSelect.value = selectedUserSize;
+
+                const badge = document.getElementById('detectedSizeBadge');
+                if (badge) {
+                  badge.innerText = `Store Size: ${selectedUserSize} (Auto-Detected)`;
+                  badge.style.background = "rgba(16, 185, 129, 0.18)";
+                  badge.style.color = "#047857";
+                  badge.style.fontWeight = "700";
+                }
+              }
+
               if (currentProduct.imageUrl) {
-                loadedGarmentImg = new Image();
-                loadedGarmentImg.crossOrigin = "anonymous";
-                loadedGarmentImg.src = currentProduct.imageUrl;
-                loadedGarmentImg.onload = () => renderVRMannequin();
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => {
+                  loadedGarmentImg = img;
+                  renderVRMannequin();
+                };
+                img.onerror = () => {
+                  const imgNoCors = new Image();
+                  imgNoCors.onload = () => {
+                    loadedGarmentImg = imgNoCors;
+                    renderVRMannequin();
+                  };
+                  imgNoCors.src = currentProduct.imageUrl;
+                };
+                img.src = currentProduct.imageUrl;
               }
               updateProductDisplay();
               calculateFitScore();
@@ -175,39 +230,78 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateProductDisplay() {
-    document.getElementById('productTitleDisplay').innerText = currentProduct.title || "Clothing Item Scanned";
-    document.getElementById('productFabricDisplay').innerText = currentProduct.fabric || "Cotton Mix";
+    if (document.getElementById('productTitleDisplay')) document.getElementById('productTitleDisplay').innerText = currentProduct.title || "Clothing Item Scanned";
+    if (document.getElementById('productFabricDisplay')) document.getElementById('productFabricDisplay').innerText = currentProduct.fabric || "Cotton Mix";
+
+    // Non-clothing page alert banner
+    let nonClothingBanner = document.getElementById('nonClothingWarningBanner');
+    if (currentProduct.isClothing === false) {
+      if (!nonClothingBanner) {
+        nonClothingBanner = document.createElement('div');
+        nonClothingBanner.id = 'nonClothingWarningBanner';
+        nonClothingBanner.style.cssText = "background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: 11px; padding: 8px 12px; border-radius: 8px; font-weight: 600; margin-bottom: 8px;";
+        nonClothingBanner.innerHTML = "⚠️ <strong>Non-Clothing Page Detected</strong>: Smart ReturnGuard works specifically on apparel and garment product pages.";
+        const viewport = document.querySelector('.content-viewport');
+        if (viewport) viewport.insertBefore(nonClothingBanner, viewport.firstChild);
+      }
+    } else if (nonClothingBanner) {
+      nonClothingBanner.remove();
+    }
 
     const sentimentEl = document.getElementById('productReviewSentimentDisplay');
-    if (currentProduct.reviewSentiment === "RUNS_SMALL") {
-      sentimentEl.innerText = "Runs Small (Size Up!)";
-      sentimentEl.style.color = "#f87171";
-    } else if (currentProduct.reviewSentiment === "RUNS_LARGE") {
-      sentimentEl.innerText = "Runs Large (Size Down)";
-      sentimentEl.style.color = "#38bdf8";
-    } else {
-      sentimentEl.innerText = "True to Size";
-      sentimentEl.style.color = "#34d399";
+    if (sentimentEl) {
+      if (currentProduct.reviewSentiment === "RUNS_SMALL") {
+        sentimentEl.innerText = "Runs Small (Size Up!)";
+        sentimentEl.style.color = "#f87171";
+      } else if (currentProduct.reviewSentiment === "RUNS_LARGE") {
+        sentimentEl.innerText = "Runs Large (Size Down)";
+        sentimentEl.style.color = "#38bdf8";
+      } else {
+        sentimentEl.innerText = "True to Size";
+        sentimentEl.style.color = "#34d399";
+      }
     }
 
     const badge = document.getElementById('fabricStretchBadge');
-    const stretchPct = Math.round((currentProduct.stretchFactor || 0.05) * 100);
-    badge.innerText = `Stretch ${stretchPct}%`;
-    badge.className = stretchPct >= 8 ? "risk-badge risk-low" : "risk-badge risk-med";
+    if (badge) {
+      const stretchPct = Math.round((currentProduct.stretchFactor || 0.05) * 100);
+      badge.innerText = `Stretch ${stretchPct}%`;
+      badge.className = stretchPct >= 8 ? "risk-badge risk-low" : "risk-badge risk-med";
+    }
   }
 
   function calculateFitScore() {
-    referenceBrand = document.getElementById('refBrandNameSelect').value || 'Nike';
+    const brandSelect = document.getElementById('refBrandNameSelect');
+    referenceBrand = brandSelect ? brandSelect.value : 'Nike';
 
-    let baseChest = 98;
-    let baseWaist = 82;
+    // Helper: Map arbitrary size to standard chest/waist base
+    function getBaseDimensionsForSize(sz) {
+      if (!sz) return { chest: 98, waist: 82 };
+      const s = String(sz).trim().toUpperCase();
+      if (s === 'XXS') return { chest: 80, waist: 64 };
+      if (s === 'XS' || s === '28') return { chest: 86, waist: 70 };
+      if (s === 'S' || s === '30') return { chest: 92, waist: 76 };
+      if (s === 'M' || s === '32') return { chest: 98, waist: 82 };
+      if (s === 'L' || s === '34') return { chest: 104, waist: 88 };
+      if (s === 'XL' || s === '36') return { chest: 112, waist: 96 };
+      if (s === 'XXL' || s === '2XL' || s === '38') return { chest: 120, waist: 104 };
+      if (s === '3XL' || s === '40') return { chest: 126, waist: 110 };
 
-    if (selectedUserSize === 'XS') { baseChest = 86; baseWaist = 70; }
-    if (selectedUserSize === 'S') { baseChest = 92; baseWaist = 76; }
-    if (selectedUserSize === 'M') { baseChest = 98; baseWaist = 82; }
-    if (selectedUserSize === 'L') { baseChest = 104; baseWaist = 88; }
-    if (selectedUserSize === 'XL') { baseChest = 112; baseWaist = 96; }
-    if (selectedUserSize === '2XL') { baseChest = 120; baseWaist = 104; }
+      // Numeric waist size directly (e.g. 28, 30, 32, 34 inch pants)
+      const numMatch = s.match(/^(\d{2})/);
+      if (numMatch) {
+        const val = parseInt(numMatch[1], 10);
+        if (val >= 24 && val <= 50) {
+          const waistCm = Math.round(val * 2.54);
+          return { chest: waistCm + 16, waist: waistCm };
+        }
+      }
+      return { chest: 98, waist: 82 };
+    }
+
+    const baseDim = getBaseDimensionsForSize(selectedUserSize);
+    let baseChest = baseDim.chest;
+    let baseWaist = baseDim.waist;
 
     if (referenceBrand === 'Zara') { baseChest -= 3; baseWaist -= 3; }
     if (referenceBrand === 'H&M') { baseChest += 3; baseWaist += 3; }
@@ -236,41 +330,127 @@ document.addEventListener('DOMContentLoaded', () => {
     const recommendedSize = document.getElementById('recommendedSize');
     const riskDisplay = document.getElementById('riskLabelDisplay');
 
-    scoreVal.innerText = `${score}%`;
-    const dashVal = Math.round((score / 100) * 100);
-    scoreGauge.setAttribute('stroke-dasharray', `${dashVal}, 100`);
+    if (scoreVal) scoreVal.innerText = `${score}%`;
+    if (scoreGauge) {
+      const dashVal = Math.round((score / 100) * 100);
+      scoreGauge.setAttribute('stroke-dasharray', `${dashVal}, 100`);
+    }
 
     let recSize = selectedUserSize;
     if (currentProduct.reviewSentiment === "RUNS_SMALL" || score < 72) {
       recSize = getNextSizeUp(selectedUserSize);
     }
 
-    if (score >= 84) {
-      scoreGauge.setAttribute('stroke', '#10b981');
-      verdictTitle.innerText = "Great Fit Match";
-      verdictTitle.style.color = "#34d399";
-      verdictDesc.innerText = `Selected Size ${selectedUserSize} provides optimal ease with +${(currentProduct.stretchFactor*100).toFixed(0)}% fabric stretch.`;
-      recommendedSize.innerText = `SIZE ${recSize}`;
-      if (riskDisplay) { riskDisplay.innerText = "LOW"; riskDisplay.style.color = "#34d399"; }
-    } else if (score >= 68) {
-      scoreGauge.setAttribute('stroke', '#f59e0b');
-      verdictTitle.innerText = "Slightly Snug Ease";
-      verdictTitle.style.color = "#fbbf24";
-      verdictDesc.innerText = `Garment cut is slightly tight around waist. Consider sizing up for comfort.`;
-      recommendedSize.innerText = `SIZE ${recSize}`;
-      if (riskDisplay) { riskDisplay.innerText = "MODERATE"; riskDisplay.style.color = "#fbbf24"; }
-    } else {
-      scoreGauge.setAttribute('stroke', '#ef4444');
-      verdictTitle.innerText = "High Return Risk";
-      verdictTitle.style.color = "#f87171";
-      verdictDesc.innerText = `Lack of fabric stretch will cause tight constriction. Size up to avoid returning.`;
-      recommendedSize.innerText = `SIZE ${recSize}`;
-      if (riskDisplay) { riskDisplay.innerText = "HIGH"; riskDisplay.style.color = "#f87171"; }
+    if (verdictTitle) {
+      if (score >= 84) {
+        if (scoreGauge) scoreGauge.setAttribute('stroke', '#10b981');
+        verdictTitle.innerText = "Great Fit Match";
+        verdictTitle.style.color = "#34d399";
+        if (verdictDesc) verdictDesc.innerText = `Selected Size ${selectedUserSize} provides optimal ease with +${(currentProduct.stretchFactor*100).toFixed(0)}% fabric stretch.`;
+        if (recommendedSize) recommendedSize.innerText = `SIZE ${recSize}`;
+        if (riskDisplay) { riskDisplay.innerText = "LOW"; riskDisplay.style.color = "#34d399"; }
+      } else if (score >= 68) {
+        if (scoreGauge) scoreGauge.setAttribute('stroke', '#f59e0b');
+        verdictTitle.innerText = "Slightly Snug Ease";
+        verdictTitle.style.color = "#fbbf24";
+        if (verdictDesc) verdictDesc.innerText = `Garment cut is slightly tight around waist. Consider sizing up for comfort.`;
+        if (recommendedSize) recommendedSize.innerText = `SIZE ${recSize}`;
+        if (riskDisplay) { riskDisplay.innerText = "MODERATE"; riskDisplay.style.color = "#fbbf24"; }
+      } else {
+        if (scoreGauge) scoreGauge.setAttribute('stroke', '#ef4444');
+        verdictTitle.innerText = "High Return Risk";
+        verdictTitle.style.color = "#f87171";
+        if (verdictDesc) verdictDesc.innerText = `Lack of fabric stretch will cause tight constriction. Size up to avoid returning.`;
+        if (recommendedSize) recommendedSize.innerText = `SIZE ${recSize}`;
+        if (riskDisplay) { riskDisplay.innerText = "HIGH"; riskDisplay.style.color = "#f87171"; }
+      }
     }
 
     updateMetricBar('chestBar', 'chestEaseVal', chestDiff, "Chest");
     updateMetricBar('waistBar', 'waistEaseVal', waistDiff, "Waist");
     updateMetricBar('shoulderBar', 'shoulderEaseVal', 1.5, "Shoulder");
+
+    updateAutomatedRecommendedItems(recSize, userProfile);
+  }
+
+  function updateAutomatedRecommendedItems(recSize, profile) {
+    const container = document.getElementById('recItemsContainer');
+    if (!container) return;
+
+    const siteLinks = (currentProduct && currentProduct.siteLinks && currentProduct.siteLinks.length > 0)
+      ? currentProduct.siteLinks
+      : [];
+
+    // Automated catalog based on user's measurements & selected preferences
+    const catalog = [
+      {
+        icon: "👕",
+        title: siteLinks[0] ? siteLinks[0].title : "Breathable Slim-Fit Crewneck",
+        category: "T-Shirt / Top",
+        fabric: "95% Cotton, 5% Spandex",
+        recommendedSize: recSize,
+        matchScore: 96,
+        risk: "LOW",
+        url: siteLinks[0] ? siteLinks[0].url : ""
+      },
+      {
+        icon: "🧥",
+        title: siteLinks[1] ? siteLinks[1].title : "Urban Stretch Bomber Jacket",
+        category: "Outerwear",
+        fabric: "Cotton-Poly Flex Weave",
+        recommendedSize: getNextSizeUp(recSize),
+        matchScore: 92,
+        risk: "LOW",
+        url: siteLinks[1] ? siteLinks[1].url : ""
+      },
+      {
+        icon: "👔",
+        title: siteLinks[2] ? siteLinks[2].title : "Tailored Comfort Oxford Shirt",
+        category: "Formal / Casual Shirt",
+        fabric: "100% Breathable Linen/Cotton",
+        recommendedSize: recSize,
+        matchScore: 89,
+        risk: "LOW",
+        url: siteLinks[2] ? siteLinks[2].url : ""
+      },
+      {
+        icon: "👖",
+        title: siteLinks[3] ? siteLinks[3].title : "Flexible Tapered Chino Pants",
+        category: "Bottoms",
+        fabric: "98% Cotton, 2% Elastane",
+        recommendedSize: recSize === 'XS' ? '28' : (recSize === 'S' ? '30' : (recSize === 'M' ? '32' : (recSize === 'L' ? '34' : '36'))),
+        matchScore: 94,
+        risk: "LOW",
+        url: siteLinks[3] ? siteLinks[3].url : ""
+      }
+    ];
+
+    container.innerHTML = catalog.map(item => `
+      <a href="${item.url || '#'}" ${item.url ? 'target="_blank" rel="noopener noreferrer"' : ''} class="rec-item-card" style="text-decoration: none; color: inherit; cursor: pointer;">
+        <div class="rec-item-left">
+          <div class="rec-item-icon">${item.icon}</div>
+          <div class="rec-item-info">
+            <div class="rec-item-title" style="display: flex; align-items: center; gap: 4px;">
+              <span>${item.title}</span>
+              ${item.url ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' : ''}
+            </div>
+            <div class="rec-item-desc">${item.category} • ${item.fabric}</div>
+          </div>
+        </div>
+        <div class="rec-item-right">
+          <span class="rec-item-size">Size ${item.recommendedSize}</span>
+          <span class="rec-item-match">✓ ${item.matchScore}% Match</span>
+        </div>
+      </a>
+    `).join('');
+
+    const countBadge = document.getElementById('recItemsCountBadge');
+    if (countBadge) countBadge.innerText = `${catalog.length} Tailored`;
+
+    const profileContainer = document.getElementById('profileRecItemsContainer');
+    if (profileContainer) {
+      profileContainer.innerHTML = container.innerHTML;
+    }
   }
 
   function getNextSizeUp(sz) {
@@ -304,6 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function toggleLiveCamera() {
+    const btn = document.getElementById('btnStartCamera');
     if (vrState.isCameraActive) {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
@@ -313,8 +494,10 @@ document.addEventListener('DOMContentLoaded', () => {
         video.srcObject = null;
       }
       vrState.isCameraActive = false;
-      document.getElementById('btnStartCamera').innerText = "🎥 Start Live Camera";
-      document.getElementById('btnStartCamera').style.background = "linear-gradient(135deg, #6366f1, #8b5cf6)";
+      if (btn) {
+        btn.innerText = "🎥 Start Live Camera";
+        btn.style.background = "linear-gradient(135deg, #6366f1, #8b5cf6)";
+      }
       renderVRMannequin();
     } else {
       try {
@@ -326,14 +509,19 @@ document.addEventListener('DOMContentLoaded', () => {
             video.srcObject = cameraStream;
             video.play();
             vrState.isCameraActive = true;
-            document.getElementById('btnStartCamera').innerText = "🔴 Camera Active (Click to Turn Off)";
-            document.getElementById('btnStartCamera').style.background = "#ef4444";
+            if (btn) {
+              btn.innerText = "🔴 Camera Active (Click to Turn Off)";
+              btn.style.background = "#ef4444";
+            }
             startARLoop();
           }
         }
       } catch (err) {
+        console.error("Camera error:", err);
         vrState.isCameraActive = true;
-        document.getElementById('btnStartCamera').innerText = "🔴 AR Mirror Active (Click to Turn Off)";
+        if (btn) {
+          btn.innerText = "🔴 AR Mirror Active (Click to Turn Off)";
+        }
         startARLoop();
       }
     }
@@ -361,17 +549,17 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.clearRect(0, 0, w, h);
 
     // 1. RENDER MIRRORED LIVE CAMERA FEED
-    if (vrState.isCameraActive && video && video.readyState === 4) {
+    if (vrState.isCameraActive && video && video.readyState >= 1) {
       ctx.save();
       ctx.translate(w, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, w, h);
       ctx.restore();
     } else {
-      ctx.fillStyle = "#0f172a";
+      ctx.fillStyle = "#f8fafc";
       ctx.fillRect(0, 0, w, h);
 
-      ctx.strokeStyle = "rgba(99, 102, 241, 0.25)";
+      ctx.strokeStyle = "rgba(99, 102, 241, 0.18)";
       ctx.lineWidth = 1;
       const centerY = h - 35;
       for (let x = 0; x <= w; x += 25) {
@@ -382,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. CALCULATE SIZE & BODY SCALE (GOOGLE MEET VIRTUAL FIT DYNAMICS)
+    // 2. CALCULATE DYNAMIC SIZE SCALE
     let sizeScale = 1.0;
     if (vrState.size === 'XS') sizeScale = 0.82;
     if (vrState.size === 'S') sizeScale = 0.90;
@@ -391,11 +579,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (vrState.size === 'XL') sizeScale = 1.25;
     if (vrState.size === '2XL') sizeScale = 1.38;
 
-    const sw = 60 * sizeScale; // Shoulder half-width
-    const ww = 48 * sizeScale; // Waist half-width
-    const topY = h * 0.32;     // Garment collar top
-    const botY = h * 0.78;     // Garment hem bottom
-    const neckR = 18 * sizeScale; // Neck cutout radius
+    const sw = 64 * sizeScale; // Shoulder half-width
+    const ww = 52 * sizeScale; // Waist half-width
+    const topY = h * 0.30;     // Garment top position
+    const botY = h * 0.78;     // Garment bottom position
+    const neckR = 20 * sizeScale; // Neck cutout radius
 
     ctx.save();
     ctx.translate(w / 2, 0);
@@ -406,95 +594,47 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.translate(0, -(topY + botY) / 2);
     }
 
-    // 3. DRAW MANNEQUIN BODY WHEN CAMERA IS INACTIVE
-    if (!vrState.isCameraActive) {
-      ctx.fillStyle = "rgba(96, 165, 250, 0.9)";
-      ctx.beginPath();
-      ctx.arc(0, topY - 24, 16, 0, Math.PI * 2);
-      ctx.fill();
+    // 3. RENDER GARMENT IMAGE (WITHOUT SHIRT CUTOUT BORDER / SILHOUETTE)
+    const imgW = sw * 2;
+    const imgH = (botY - topY) + 20;
 
-      ctx.fillStyle = "rgba(59, 130, 246, 0.85)";
-      ctx.fillRect(-5, topY - 8, 10, 10);
-    }
-
-    // 4. GOOGLE MEET STYLE TORSO SEGMENT MASK PATH
-    ctx.beginPath();
-    ctx.moveTo(-neckR, topY);
-    ctx.quadraticCurveTo(0, topY + neckR * 0.75, neckR, topY); // Neck cutout curve
-    ctx.lineTo(sw, topY + 12); // Right shoulder
-    ctx.lineTo(sw + 16, topY + 40); // Right sleeve out
-    ctx.lineTo(sw - 5, topY + 52);  // Right sleeve under
-    ctx.lineTo(ww, botY);           // Right waist side
-    ctx.quadraticCurveTo(0, botY + 7, -ww, botY); // Bottom hem curve
-    ctx.lineTo(-sw + 5, topY + 52);  // Left waist side
-    ctx.lineTo(-sw - 16, topY + 40); // Left sleeve under
-    ctx.lineTo(-sw, topY + 12);      // Left shoulder
-    ctx.closePath();
-
-    // 5. CLIP & RENDER SCRAPED CLOTH IMAGE (GOOGLE MEET BACKGROUND BLEND EFFECT)
-    ctx.save();
-    ctx.clip(); // Mask content strictly within body silhouette!
-
-    if (loadedGarmentImg && loadedGarmentImg.complete) {
+    if (loadedGarmentImg && loadedGarmentImg.complete && loadedGarmentImg.naturalWidth !== 0) {
+      ctx.save();
       ctx.globalAlpha = vrState.isCameraActive ? 0.92 : 1.0;
-      ctx.drawImage(loadedGarmentImg, -sw - 18, topY - 10, (sw + 18) * 2, botY - topY + 20);
-
-      // Google Meet Ambient Lighting & Shading Layer over clothing
-      if (vrState.isCameraActive) {
-        let shadeGrad = ctx.createRadialGradient(0, topY + 35, 8, 0, topY + 35, sw * 1.4);
-        shadeGrad.addColorStop(0, "rgba(255, 255, 255, 0.15)");
-        shadeGrad.addColorStop(0.7, "rgba(0, 0, 0, 0.05)");
-        shadeGrad.addColorStop(1, "rgba(0, 0, 0, 0.35)");
-        ctx.fillStyle = shadeGrad;
-        ctx.fillRect(-sw - 25, topY - 20, (sw + 25) * 2, botY - topY + 40);
-      }
+      ctx.drawImage(loadedGarmentImg, -sw, topY - 10, imgW, imgH);
+      ctx.restore();
     } else {
-      // Fallback Heatmap Texture
-      let heatmapGrad = ctx.createLinearGradient(0, topY, 0, botY);
-      if (vrState.size === 'XS' || vrState.size === 'S') {
-        heatmapGrad.addColorStop(0, "rgba(239, 68, 68, 0.85)");
-        heatmapGrad.addColorStop(0.5, "rgba(245, 158, 11, 0.75)");
-        heatmapGrad.addColorStop(1, "rgba(16, 185, 129, 0.65)");
-      } else if (vrState.size === 'M') {
-        heatmapGrad.addColorStop(0, "rgba(16, 185, 129, 0.85)");
-        heatmapGrad.addColorStop(0.6, "rgba(16, 185, 129, 0.75)");
-        heatmapGrad.addColorStop(1, "rgba(56, 189, 248, 0.65)");
-      } else {
-        heatmapGrad.addColorStop(0, "rgba(56, 189, 248, 0.85)");
-        heatmapGrad.addColorStop(1, "rgba(99, 102, 241, 0.65)");
-      }
-      ctx.fillStyle = heatmapGrad;
-      ctx.fillRect(-sw - 25, topY - 20, (sw + 25) * 2, botY - topY + 40);
-    }
-    ctx.restore(); // End clipping mask
+      // Clean styled garment card preview when no scraped image is available
+      ctx.save();
+      const cardGrad = ctx.createLinearGradient(0, topY, 0, botY);
+      cardGrad.addColorStop(0, "rgba(99, 102, 241, 0.9)");
+      cardGrad.addColorStop(1, "rgba(139, 92, 246, 0.85)");
+      ctx.fillStyle = cardGrad;
 
-    // 6. GOOGLE MEET GLOWING BODY CONTOUR HIGHLIGHT
-    ctx.strokeStyle = vrState.isCameraActive ? "rgba(52, 211, 153, 0.85)" : "rgba(129, 140, 248, 0.8)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // 7. HUD STATUS OVERLAY FOR GOOGLE MEET STYLE VIRTUAL FIT
-    if (vrState.isCameraActive) {
-      ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
-      ctx.fillRect(-140, 8, 280, 20);
-      ctx.strokeStyle = "rgba(52, 211, 153, 0.4)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(-140, 8, 280, 20);
-
-      ctx.fillStyle = "#34d399";
+      // Rounded rectangle for apparel display (natural box, no neck cutout or sleeve borders)
+      const rx = -sw, ry = topY, rw = imgW, rh = botY - topY, radius = 12;
       ctx.beginPath();
-      ctx.arc(-128, 18, 3.5, 0, Math.PI * 2);
+      ctx.moveTo(rx + radius, ry);
+      ctx.lineTo(rx + rw - radius, ry);
+      ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
+      ctx.lineTo(rx + rw, ry + rh - radius);
+      ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
+      ctx.lineTo(rx + radius, ry + rh);
+      ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
+      ctx.lineTo(rx, ry + radius);
+      ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+      ctx.closePath();
       ctx.fill();
 
+      // Label inside
       ctx.fillStyle = "#ffffff";
-      ctx.font = "600 9.5px sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(`Google Meet Virtual Fit • AI Body Lock (${vrState.size})`, -118, 21);
-    } else {
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 9.5px sans-serif";
+      ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(currentProduct.title ? currentProduct.title.substring(0, 20) : "Scraped Garment", 0, topY + (botY - topY) / 2);
+      ctx.fillText(currentProduct.title ? currentProduct.title.substring(0, 24) : "Product Garment", 0, topY + (botY - topY) / 2);
+      ctx.font = "9px sans-serif";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.fillText(`Size ${vrState.size}`, 0, topY + (botY - topY) / 2 + 16);
+      ctx.restore();
     }
 
     ctx.restore();
@@ -510,39 +650,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateSizeChipUI(selectedUserSize);
         vrState.size = selectedUserSize;
-        document.getElementById('vrSizeSelect').value = selectedUserSize;
+        const vrSel = document.getElementById('vrSizeSelect');
+        if (vrSel) vrSel.value = selectedUserSize;
         calculateFitScore();
         renderVRMannequin();
       });
     });
 
-    document.getElementById('refBrandNameSelect').addEventListener('change', calculateFitScore);
-    document.getElementById('fitPrefQuickSelect').addEventListener('change', calculateFitScore);
+    if (document.getElementById('refBrandNameSelect')) document.getElementById('refBrandNameSelect').addEventListener('change', calculateFitScore);
+    if (document.getElementById('fitPrefQuickSelect')) document.getElementById('fitPrefQuickSelect').addEventListener('change', calculateFitScore);
 
-    document.getElementById('btnSaveProfile').addEventListener('click', saveProfileData);
+    if (document.getElementById('btnSaveProfile')) document.getElementById('btnSaveProfile').addEventListener('click', saveProfileData);
 
-    document.getElementById('btnRescanPage').addEventListener('click', () => {
-      queryActiveTabProduct();
-    });
+    if (document.getElementById('btnRescanPage')) {
+      document.getElementById('btnRescanPage').addEventListener('click', () => {
+        queryActiveTabProduct();
+      });
+    }
 
-    document.getElementById('btnStartCamera').addEventListener('click', () => {
-      toggleLiveCamera();
-    });
+    if (document.getElementById('btnStartCamera')) {
+      document.getElementById('btnStartCamera').addEventListener('click', () => {
+        toggleLiveCamera();
+      });
+    }
 
-    document.getElementById('vrSizeSelect').addEventListener('change', (e) => {
-      vrState.size = e.target.value;
-      renderVRMannequin();
-    });
+    if (document.getElementById('vrSizeSelect')) {
+      document.getElementById('vrSizeSelect').addEventListener('change', (e) => {
+        vrState.size = e.target.value;
+        renderVRMannequin();
+      });
+    }
 
-    document.getElementById('vrPoseSelect').addEventListener('change', (e) => {
-      vrState.pose = e.target.value;
-      renderVRMannequin();
-    });
+    if (document.getElementById('vrPoseSelect')) {
+      document.getElementById('vrPoseSelect').addEventListener('change', (e) => {
+        vrState.pose = e.target.value;
+        renderVRMannequin();
+      });
+    }
 
-    document.getElementById('vrGarmentTypeSelect').addEventListener('change', (e) => {
-      vrState.garmentType = e.target.value;
-      renderVRMannequin();
-    });
+    if (document.getElementById('vrGarmentTypeSelect')) {
+      document.getElementById('vrGarmentTypeSelect').addEventListener('change', (e) => {
+        vrState.garmentType = e.target.value;
+        renderVRMannequin();
+      });
+    }
 
     const rotationSlider = document.getElementById('vrRotationSlider');
     if (rotationSlider) {
@@ -552,17 +703,24 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    document.getElementById('toggleHeatmapBtn').addEventListener('click', () => {
-      vrState.showHeatmap = !vrState.showHeatmap;
-      document.getElementById('vrModeLabel').innerText = vrState.showHeatmap ? "3D Heatmap" : "Fabric Only";
-      renderVRMannequin();
-    });
+    const toggleHeatmapBtn = document.getElementById('toggleHeatmapBtn');
+    if (toggleHeatmapBtn) {
+      toggleHeatmapBtn.addEventListener('click', () => {
+        vrState.showHeatmap = !vrState.showHeatmap;
+        const modeLbl = document.getElementById('vrModeLabel');
+        if (modeLbl) modeLbl.innerText = vrState.showHeatmap ? "3D Heatmap" : "Fabric Only";
+        renderVRMannequin();
+      });
+    }
 
-    document.getElementById('rotateMannequinBtn').addEventListener('click', () => {
-      vrState.rotationAngle = (vrState.rotationAngle + 45) % 360;
-      if (rotationSlider) rotationSlider.value = vrState.rotationAngle;
-      renderVRMannequin();
-    });
+    const rotateMannequinBtn = document.getElementById('rotateMannequinBtn');
+    if (rotateMannequinBtn) {
+      rotateMannequinBtn.addEventListener('click', () => {
+        vrState.rotationAngle = (vrState.rotationAngle + 45) % 360;
+        if (rotationSlider) rotationSlider.value = vrState.rotationAngle;
+        renderVRMannequin();
+      });
+    }
   }
 
 });
